@@ -1,0 +1,100 @@
+spring:
+  application:
+    name: prreview
+
+  # Database
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/prreview}
+    username: ${DB_USERNAME:prreview}
+    password: ${DB_PASSWORD:prreview}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+
+  # JPA — never use ddl-auto in production
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: false
+
+  # Flyway schema migrations
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+
+  # RFC 7807 ProblemDetail
+  mvc:
+    problemdetail:
+      enabled: true
+
+  # Java 21 virtual threads — enables high-concurrency IO without reactive complexity
+  threads:
+    virtual:
+      enabled: true
+
+  # Spring AI — OpenAI-compatible endpoint for Qwen (Alibaba DashScope)
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:${DASHSCOPE_API_KEY:change-me}}
+      base-url: ${OPENAI_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+      chat:
+        options:
+          model: ${OPENAI_MODEL:qwen-plus}
+          temperature: 0.1
+
+# Application-specific configuration
+prreview:
+  api-key: ${PRREVIEW_API_KEY:dev-api-key-change-in-production}
+  max-concurrent-reviews: 10
+
+  github:
+    token: ${GITHUB_TOKEN:}
+    api-base-url: https://api.github.com
+    connect-timeout-seconds: 3
+    read-timeout-seconds: 10
+    max-retries: 3
+    max-files-per-pr: 300
+
+  model-routing:
+    fast: openai
+    slow: openai
+    cascade-enabled: true
+    per-review-token-budget: 200000
+    llm-timeout-fast: 15s
+    llm-timeout-slow: 40s
+
+# Actuator — only health is public; others require auth
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+  security:
+    enabled: true
+
+# Logging — structured, no sensitive data
+logging:
+  level:
+    com.prreview: INFO
+    org.springframework.ai: INFO
+    org.springframework.security: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+# SpringDoc OpenAPI
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
