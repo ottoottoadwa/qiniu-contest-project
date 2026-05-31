@@ -6,10 +6,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
@@ -17,7 +15,6 @@ import java.util.UUID;
  */
 @Entity
 @Table(name = "risk_items")
-@EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -71,9 +68,8 @@ public class RiskItemEntity {
     @Column(name = "code_snippet")
     private String codeSnippet;
 
-    @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
-    private OffsetDateTime createdAt;
+    private LocalDateTime createdAt;
 
     @OneToOne(mappedBy = "riskItem", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private ReviewSuggestionEntity suggestion;

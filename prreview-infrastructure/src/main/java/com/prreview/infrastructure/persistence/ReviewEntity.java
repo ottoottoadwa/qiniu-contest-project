@@ -6,12 +6,9 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.annotation.LastModifiedDate;
-import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.math.BigDecimal;
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -21,7 +18,6 @@ import java.util.UUID;
  */
 @Entity
 @Table(name = "reviews")
-@EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -81,19 +77,17 @@ public class ReviewEntity {
     @Column(name = "deleted", nullable = false)
     private boolean deleted;
 
-    @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
-    private OffsetDateTime createdAt;
+    private LocalDateTime createdAt;
 
-    @LastModifiedDate
     @Column(name = "updated_at", nullable = false)
-    private OffsetDateTime updatedAt;
+    private LocalDateTime updatedAt;
 
     @Column(name = "started_at")
-    private OffsetDateTime startedAt;
+    private LocalDateTime startedAt;
 
     @Column(name = "completed_at")
-    private OffsetDateTime completedAt;
+    private LocalDateTime completedAt;
 
     // Summary stored as embedded JSON in a separate table (1:1)
     @OneToOne(mappedBy = "review", cascade = CascadeType.ALL, fetch = FetchType.LAZY)

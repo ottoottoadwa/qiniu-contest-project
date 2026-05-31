@@ -14,6 +14,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import java.util.List;
 import java.util.Map;
@@ -33,6 +35,7 @@ public class ReviewOrchestrator {
     private final ContextAssembler contextAssembler;
     private final AnalysisEngine analysisEngine;
     private final ReviewRepositoryPort reviewRepository;
+    private final PlatformTransactionManager transactionManager;
 
     /**
      * Executes the full review pipeline for a given review task.
@@ -49,6 +52,11 @@ public class ReviewOrchestrator {
         log.info("Starting review execution: reviewId={}, repo={}, pr={}",
                 reviewId, review.getRepository(), review.getPrNumber());
 
+        // Create a TransactionTemplate with REQUIRES_NEW for immediate commits
+        TransactionTemplate newTransactionTemplate = new TransactionTemplate(transactionManager);
+        newTransactionTemplate.setPropagationBehavior(
+                org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+
         try {
             RepositoryRef repoRef = RepositoryRef.parse(review.getRepository());
 
@@ -56,18 +64,38 @@ public class ReviewOrchestrator {
             PullRequest pr = prSource.fetchPullRequest(repoRef, review.getPrNumber());
             List<FileChange> fileChanges = prSource.fetchChangedFiles(repoRef, review.getPrNumber());
 
+            // Commit RUNNING state in a separate transaction so the status endpoint
+            // can see it while the long-running analysis is in progress.
             review.start(fileChanges.size());
-            reviewRepository.save(review);
+            newTransactionTemplate.executeWithoutResult(status -> reviewRepository.save(review));
+            log.info("Review status committed as RUNNING: reviewId={}, files={}",
+                    reviewId, fileChanges.size());
 
             // Step 2: Assemble context
             List<ContextPackage> contextPackages = contextAssembler.assemble(pr, fileChanges);
 
-            // Step 3: Analyze
+            // Step 3: Analyze (with progress callback)
+            var progressCallback = new AnalysisEngine.ProgressCallback() {
+                private int analyzed = 0;
+
+                @Override
+                public void onFileAnalyzed(String filePath) {
+                    analyzed++;
+                    newTransactionTemplate.executeWithoutResult(status -> {
+                        review.updateProgress(analyzed);
+                        reviewRepository.save(review);
+                    });
+                    log.debug("Progress updated: {}/{} ({})", analyzed, fileChanges.size(),
+                            String.format("%.0f%%", (double) analyzed / fileChanges.size() * 100));
+                }
+            };
+
             AnalysisEngine.AnalysisResult result = analysisEngine.analyze(
                     reviewId.toString(), contextPackages,
                     review.getAnalysisProfile(),
                     categories.isEmpty() ? Set.of(RiskCategory.values()) : categories,
-                    Map.of()); // calibration map — empty for MVP
+                    Map.of(), // calibration map — empty for MVP
+                    progressCallback);
 
             // Step 4: Complete
             review.complete(result.summary(), result.riskItems());
@@ -79,7 +107,7 @@ public class ReviewOrchestrator {
         } catch (Exception e) {
             log.error("Review execution failed: reviewId={}", reviewId, e);
             review.fail(e.getMessage());
-            reviewRepository.save(review);
+            newTransactionTemplate.executeWithoutResult(status -> reviewRepository.save(review));
         }
     }
 }

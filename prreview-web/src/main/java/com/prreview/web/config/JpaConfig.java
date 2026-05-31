@@ -1,13 +1,12 @@
 package com.prreview.web.config;
 
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 
 /**
- * JPA configuration for auditing support.
- * Separated from main application class to allow @WebMvcTest to exclude it.
+ * JPA configuration.
+ * JPA Auditing is disabled because we manually set timestamps in the mapper
+ * to handle LocalDateTime (database) to OffsetDateTime (domain) conversion.
  */
 @Configuration
-@EnableJpaAuditing
 public class JpaConfig {
 }

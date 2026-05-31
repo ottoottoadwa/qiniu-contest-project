@@ -11,8 +11,13 @@ import com.prreview.domain.model.risk.RiskCategory;
 import com.prreview.domain.model.risk.RiskItem;
 import com.prreview.domain.model.risk.ReviewSuggestion;
 import com.prreview.domain.model.risk.Severity;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
@@ -23,8 +28,12 @@ import java.util.UUID;
 @Component
 public class ReviewMapper {
 
+    private static final Logger log = LoggerFactory.getLogger(ReviewMapper.class);
+
     /** Maps a Review domain object to a ReviewEntity for persistence. */
     public ReviewEntity toEntity(Review review) {
+        log.info("=== MAPPER DEBUG: review.getCreatedAt() = {}", review.getCreatedAt());
+
         ReviewEntity entity = new ReviewEntity();
         entity.setId(review.getId());
         entity.setRepository(review.getRepository());
@@ -36,9 +45,15 @@ public class ReviewMapper {
         entity.setFilesTotal(review.getFilesTotal());
         entity.setFilesAnalyzed(review.getFilesAnalyzed());
         entity.setFailureReason(review.getFailureReason());
-        entity.setStartedAt(review.getStartedAt());
-        entity.setCompletedAt(review.getCompletedAt());
+        entity.setStartedAt(toLocalDateTime(review.getStartedAt()));
+        entity.setCompletedAt(toLocalDateTime(review.getCompletedAt()));
         entity.setDeleted(false);
+
+        // Convert domain timestamps to database LocalDateTime
+        LocalDateTime createdAtLocal = toLocalDateTime(review.getCreatedAt());
+        log.info("=== MAPPER DEBUG: converted createdAt = {}", createdAtLocal);
+        entity.setCreatedAt(createdAtLocal);
+        entity.setUpdatedAt(LocalDateTime.now());
 
         if (review.getSummary() != null) {
             ChangeSummaryEntity summaryEntity = toSummaryEntity(review.getSummary(), entity);
@@ -78,9 +93,9 @@ public class ReviewMapper {
                 entity.getFailureReason(),
                 summary,
                 riskItems,
-                entity.getCreatedAt(),
-                entity.getStartedAt(),
-                entity.getCompletedAt());
+                toOffsetDateTime(entity.getCreatedAt()),
+                toOffsetDateTime(entity.getStartedAt()),
+                toOffsetDateTime(entity.getCompletedAt()));
     }
 
     private ChangeSummaryEntity toSummaryEntity(ChangeSummary summary, ReviewEntity review) {
@@ -92,6 +107,7 @@ public class ReviewMapper {
         entity.setPrimaryType(summary.primaryType() != null ? summary.primaryType().name() : null);
         entity.setAffectedModules(summary.affectedModules());
         entity.setRiskHighlights(summary.riskHighlights());
+        entity.setCreatedAt(LocalDateTime.now());
         return entity;
     }
 
@@ -120,6 +136,7 @@ public class ReviewMapper {
         entity.setPatternKey(riskItem.patternKey());
         entity.setDescription(riskItem.description());
         entity.setRationale(riskItem.rationale());
+        entity.setCreatedAt(LocalDateTime.now());
 
         if (riskItem.suggestion() != null) {
             ReviewSuggestionEntity suggEntity = toSuggestionEntity(riskItem.suggestion(), entity);
@@ -161,6 +178,7 @@ public class ReviewMapper {
         entity.setRecommendation(suggestion.recommendation());
         entity.setSuggestedPatch(suggestion.suggestedPatch());
         entity.setReferences(suggestion.references());
+        entity.setCreatedAt(LocalDateTime.now());
         return entity;
     }
 
@@ -180,5 +198,15 @@ public class ReviewMapper {
         } catch (IllegalArgumentException e) {
             return defaultValue;
         }
+    }
+
+    /** Converts OffsetDateTime (domain) to LocalDateTime (database). */
+    private LocalDateTime toLocalDateTime(OffsetDateTime offsetDateTime) {
+        return offsetDateTime != null ? offsetDateTime.atZoneSameInstant(ZoneOffset.UTC).toLocalDateTime() : null;
+    }
+
+    /** Converts LocalDateTime (database) to OffsetDateTime (domain) assuming UTC. */
+    private OffsetDateTime toOffsetDateTime(LocalDateTime localDateTime) {
+        return localDateTime != null ? localDateTime.atOffset(ZoneOffset.UTC) : null;
     }
 }

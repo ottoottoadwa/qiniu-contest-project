@@ -12,6 +12,11 @@ import org.springframework.context.annotation.Configuration;
 public class DomainServiceConfig {
 
     @Bean
+    public ConfidenceScoringService confidenceScoringService() {
+        return new ConfidenceScoringService();
+    }
+
+    @Bean
     public RiskMergeService riskMergeService(ConfidenceScoringService confidenceScoringService) {
         return new RiskMergeService(confidenceScoringService);
     }

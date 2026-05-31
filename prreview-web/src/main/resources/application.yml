@@ -43,11 +43,17 @@ spring:
   ai:
     openai:
       api-key: ${aliQwen_api}
-      base-url: ${OPENAI_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+      base-url: ${OPENAI_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode}
       chat:
+        enabled: true
         options:
           model: ${OPENAI_MODEL:qwen-plus}
           temperature: 0.1
+          max-tokens: 2000
+      # HTTP client timeouts to prevent hanging
+      client:
+        connect-timeout: 10s
+        read-timeout: 60s
 
 # Application-specific configuration
 prreview:
@@ -85,8 +91,10 @@ management:
 # Logging — structured, no sensitive data
 logging:
   level:
-    com.prreview: INFO
-    org.springframework.ai: INFO
+    com.prreview: DEBUG
+    org.springframework.ai.openai.api.OpenAiApi: DEBUG
+    org.springframework.ai.openai: DEBUG
+    org.springframework.web.client.RestClient: DEBUG
     org.springframework.security: WARN
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

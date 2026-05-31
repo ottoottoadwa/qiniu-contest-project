@@ -8,9 +8,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.HashSet;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Implements SubmitReviewUseCase.
@@ -49,9 +52,15 @@ public class SubmitReviewService implements SubmitReviewUseCase {
         log.info("Review submitted: reviewId={}, repo={}, pr={}",
                 review.getId(), command.repository(), command.pullRequestNumber());
 
-        // Trigger async analysis (non-blocking)
-        taskRunner.runAsync(review.getId(),
-                new HashSet<>(command.riskCategories()));
+        // Trigger async analysis AFTER transaction commits
+        UUID reviewId = review.getId();
+        var categories = new HashSet<>(command.riskCategories());
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                taskRunner.runAsync(reviewId, categories);
+            }
+        });
 
         return new ReviewAccepted(review.getId(),
                 "/api/reviews/v1/" + review.getId() + "/status");

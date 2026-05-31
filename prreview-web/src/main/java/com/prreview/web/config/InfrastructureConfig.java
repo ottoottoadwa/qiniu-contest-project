@@ -6,8 +6,11 @@ import com.prreview.infrastructure.github.GitHubProperties;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.web.client.ClientHttpRequestFactories;
+import org.springframework.boot.web.client.ClientHttpRequestFactorySettings;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
@@ -20,6 +23,18 @@ import java.time.Duration;
 @EnableConfigurationProperties({GitHubProperties.class,
         com.prreview.infrastructure.ai.ModelRoutingProperties.class})
 public class InfrastructureConfig {
+
+    /**
+     * ClientHttpRequestFactory with timeout for all RestClient instances.
+     * Spring AI will use this factory when creating its internal RestClient.
+     */
+    @Bean
+    public ClientHttpRequestFactory clientHttpRequestFactory() {
+        ClientHttpRequestFactorySettings settings = ClientHttpRequestFactorySettings.DEFAULTS
+                .withConnectTimeout(Duration.ofSeconds(10))
+                .withReadTimeout(Duration.ofSeconds(60));
+        return ClientHttpRequestFactories.get(settings);
+    }
 
     /**
      * RestClient configured for GitHub API.

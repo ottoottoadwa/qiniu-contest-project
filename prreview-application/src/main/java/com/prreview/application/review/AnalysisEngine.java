@@ -52,6 +52,15 @@ public class AnalysisEngine {
                                   AnalysisProfile profile,
                                   Set<RiskCategory> categories,
                                   Map<String, Double> calibrationMap) {
+        return analyze(reviewId, contextPackages, profile, categories, calibrationMap, null);
+    }
+
+    public AnalysisResult analyze(String reviewId,
+                                  List<ContextPackage> contextPackages,
+                                  AnalysisProfile profile,
+                                  Set<RiskCategory> categories,
+                                  Map<String, Double> calibrationMap,
+                                  ProgressCallback progressCallback) {
         log.info("Starting analysis: reviewId={}, files={}, profile={}",
                 reviewId, contextPackages.size(), profile);
 
@@ -62,7 +71,7 @@ public class AnalysisEngine {
 
         // Task 2: File-level risk identification (parallel via virtual threads)
         List<RiskItem> allRiskItems = analyzeFilesInParallel(
-                reviewId, contextPackages, profile, categories, calibrationMap);
+                reviewId, contextPackages, profile, categories, calibrationMap, progressCallback);
 
         // Task 3: Suggestion generation for medium/high confidence items
         List<RiskItem> itemsWithSuggestions = generateSuggestions(allRiskItems, contextPackages);
@@ -85,12 +94,14 @@ public class AnalysisEngine {
                                                    List<ContextPackage> contextPackages,
                                                    AnalysisProfile profile,
                                                    Set<RiskCategory> categories,
-                                                   Map<String, Double> calibrationMap) {
+                                                   Map<String, Double> calibrationMap,
+                                                   ProgressCallback progressCallback) {
         // Virtual threads: one per file, all run concurrently
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            List<CompletableFuture<List<RiskItem>>> futures = contextPackages.stream()
+            List<CompletableFuture<Map.Entry<String, List<RiskItem>>>> futures = contextPackages.stream()
                     .map(ctx -> CompletableFuture.supplyAsync(
-                            () -> analyzeFile(reviewId, ctx, profile, categories, calibrationMap),
+                            () -> Map.entry(ctx.filePath(),
+                                    analyzeFile(reviewId, ctx, profile, categories, calibrationMap)),
                             executor))
                     .toList();
 
@@ -100,9 +111,15 @@ public class AnalysisEngine {
                             return f.get();
                         } catch (Exception e) {
                             log.error("File analysis failed: {}", e.getMessage(), e);
-                            return List.<RiskItem>of();
+                            return Map.entry("unknown", List.<RiskItem>of());
                         }
                     })
+                    .peek(entry -> {
+                        if (progressCallback != null) {
+                            progressCallback.onFileAnalyzed(entry.getKey());
+                        }
+                    })
+                    .map(Map.Entry::getValue)
                     .flatMap(List::stream)
                     .collect(Collectors.toList());
         }
@@ -184,4 +201,9 @@ public class AnalysisEngine {
 
     /** Result of a complete analysis run. */
     public record AnalysisResult(ChangeSummary summary, List<RiskItem> riskItems) {}
+
+    /** Callback for progress updates during analysis. */
+    public interface ProgressCallback {
+        void onFileAnalyzed(String filePath);
+    }
 }

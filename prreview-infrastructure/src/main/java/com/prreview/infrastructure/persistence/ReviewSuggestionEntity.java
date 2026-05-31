@@ -6,10 +6,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -19,7 +17,6 @@ import java.util.UUID;
  */
 @Entity
 @Table(name = "review_suggestions")
-@EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -44,10 +41,9 @@ public class ReviewSuggestionEntity {
     private String suggestedPatch;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "references", columnDefinition = "json")
+    @Column(name = "`references`", columnDefinition = "json")
     private List<String> references;
 
-    @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
-    private OffsetDateTime createdAt;
+    private LocalDateTime createdAt;
 }

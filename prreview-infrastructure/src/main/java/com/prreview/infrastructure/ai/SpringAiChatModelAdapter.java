@@ -12,22 +12,21 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
 
 /**
- * Implements ChatModelPort using Spring AI ChatClient.
- * Routes between fast and slow model tiers based on analysis profile.
+ * Implements ChatModelPort using direct HTTP calls to Qwen API.
+ * Bypasses Spring AI ChatClient due to timeout issues.
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class SpringAiChatModelAdapter implements ChatModelPort {
 
-    private final ChatClient chatClient;
+    private final DirectQwenClient directQwenClient;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -38,11 +37,9 @@ public class SpringAiChatModelAdapter implements ChatModelPort {
             String userPrompt = PromptTemplates.RISK_USER
                     .replace("{context}", truncate(renderedContext, 12000));
 
-            String response = chatClient.prompt()
-                    .system(PromptTemplates.RISK_SYSTEM)
-                    .user(userPrompt)
-                    .call()
-                    .content();
+            String fullPrompt = PromptTemplates.RISK_SYSTEM + "\n\n" + userPrompt;
+            String response = directQwenClient.callWithSystemAndUser(
+                    PromptTemplates.RISK_SYSTEM, userPrompt);
 
             return parseRiskFindings(response, filePath);
         } catch (Exception e) {
@@ -58,11 +55,8 @@ public class SpringAiChatModelAdapter implements ChatModelPort {
             String userPrompt = PromptTemplates.SUMMARY_USER
                     .replace("{context}", truncate(renderedContext, 16000));
 
-            String response = chatClient.prompt()
-                    .system(PromptTemplates.SUMMARY_SYSTEM)
-                    .user(userPrompt)
-                    .call()
-                    .content();
+            String response = directQwenClient.callWithSystemAndUser(
+                    PromptTemplates.SUMMARY_SYSTEM, userPrompt);
 
             return parseSummary(response);
         } catch (Exception e) {
@@ -81,11 +75,8 @@ public class SpringAiChatModelAdapter implements ChatModelPort {
                     .replace("{riskDescription}", riskDescription)
                     .replace("{codeContext}", truncate(codeContext, 4000));
 
-            String response = chatClient.prompt()
-                    .system(PromptTemplates.SUGGESTION_SYSTEM)
-                    .user(userPrompt)
-                    .call()
-                    .content();
+            String response = directQwenClient.callWithSystemAndUser(
+                    PromptTemplates.SUGGESTION_SYSTEM, userPrompt);
 
             return parseSuggestion(riskItemId, response);
         } catch (Exception e) {
