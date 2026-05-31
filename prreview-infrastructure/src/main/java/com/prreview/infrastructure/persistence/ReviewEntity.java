@@ -10,6 +10,7 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -27,7 +28,8 @@ import java.util.UUID;
 public class ReviewEntity {
 
     @Id
-    @Column(name = "id", nullable = false, updatable = false)
+    @Column(name = "id", nullable = false, updatable = false, columnDefinition = "CHAR(36)")
+    @JdbcTypeCode(SqlTypes.CHAR)
     private UUID id;
 
     @Column(name = "repository", nullable = false)
@@ -52,14 +54,14 @@ public class ReviewEntity {
     private String analysisProfile;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "requested_categories", columnDefinition = "jsonb")
+    @Column(name = "requested_categories", columnDefinition = "json")
     private List<String> requestedCategories;
 
     @Column(name = "idempotency_key")
     private String idempotencyKey;
 
     @Column(name = "progress", nullable = false)
-    private double progress;
+    private Double progress;
 
     @Column(name = "files_total", nullable = false)
     private int filesTotal;

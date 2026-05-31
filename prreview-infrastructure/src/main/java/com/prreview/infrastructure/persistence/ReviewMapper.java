@@ -72,7 +72,7 @@ public class ReviewMapper {
                 parseEnum(AnalysisProfile.class, entity.getAnalysisProfile(), AnalysisProfile.STANDARD),
                 entity.getIdempotencyKey(),
                 parseEnum(ReviewStatus.class, entity.getStatus(), ReviewStatus.PENDING),
-                entity.getProgress(),
+                entity.getProgress() != null ? entity.getProgress() : 0.0,
                 entity.getFilesTotal(),
                 entity.getFilesAnalyzed(),
                 entity.getFailureReason(),

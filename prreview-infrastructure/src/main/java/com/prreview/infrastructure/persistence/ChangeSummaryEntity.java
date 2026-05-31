@@ -26,7 +26,8 @@ import java.util.UUID;
 public class ChangeSummaryEntity {
 
     @Id
-    @Column(name = "id", nullable = false, updatable = false)
+    @Column(name = "id", nullable = false, updatable = false, columnDefinition = "CHAR(36)")
+    @JdbcTypeCode(SqlTypes.CHAR)
     private UUID id;
 
     @OneToOne(fetch = FetchType.LAZY)
@@ -43,11 +44,11 @@ public class ChangeSummaryEntity {
     private String primaryType;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "affected_modules", columnDefinition = "jsonb")
+    @Column(name = "affected_modules", columnDefinition = "json")
     private List<String> affectedModules;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "risk_highlights", columnDefinition = "jsonb")
+    @Column(name = "risk_highlights", columnDefinition = "json")
     private List<String> riskHighlights;
 
     @CreatedDate

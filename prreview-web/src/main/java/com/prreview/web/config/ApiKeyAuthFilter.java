@@ -50,9 +50,14 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         // Skip filter for public endpoints
-        String path = request.getServletPath();
+        String path = request.getRequestURI();
         return path.startsWith("/actuator/health")
+                || path.startsWith("/actuator/info")
                 || path.startsWith("/swagger-ui")
-                || path.startsWith("/v3/api-docs");
+                || path.startsWith("/v3/api-docs")
+                || path.equals("/swagger-ui.html")
+                || path.startsWith("/swagger-resources")
+                || path.startsWith("/webjars/")
+                || path.startsWith("/api/pr/");
     }
 }

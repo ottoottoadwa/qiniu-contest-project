@@ -3,6 +3,8 @@ package com.prreview.web.config;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.prreview.infrastructure.github.GitHubProperties;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,7 +14,7 @@ import java.time.Duration;
 
 /**
  * Infrastructure bean configuration.
- * Wires RestClient for GitHub API and Caffeine cache.
+ * Wires RestClient for GitHub API, Caffeine cache, and Spring AI ChatClient.
  */
 @Configuration
 @EnableConfigurationProperties({GitHubProperties.class,
@@ -45,5 +47,14 @@ public class InfrastructureConfig {
                 .maximumSize(500)
                 .recordStats()
                 .build();
+    }
+
+    /**
+     * Spring AI ChatClient for LLM interactions.
+     * Configured with OpenAI-compatible endpoint (Alibaba DashScope).
+     */
+    @Bean
+    public ChatClient chatClient(ChatModel chatModel) {
+        return ChatClient.builder(chatModel).build();
     }
 }

@@ -4,9 +4,9 @@ spring:
 
   # Database
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/prreview}
-    username: ${DB_USERNAME:prreview}
-    password: ${DB_PASSWORD:prreview}
+    url: ${DB_URL:jdbc:mysql://localhost:3306/prreview?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root123}
     hikari:
       maximum-pool-size: 10
       minimum-idle: 2
@@ -20,7 +20,7 @@ spring:
     show-sql: false
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
+        dialect: org.hibernate.dialect.MySQLDialect
         format_sql: false
 
   # Flyway schema migrations
@@ -42,7 +42,7 @@ spring:
   # Spring AI — OpenAI-compatible endpoint for Qwen (Alibaba DashScope)
   ai:
     openai:
-      api-key: ${OPENAI_API_KEY:${DASHSCOPE_API_KEY:change-me}}
+      api-key: ${aliQwen_api}
       base-url: ${OPENAI_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
       chat:
         options:

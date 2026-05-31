@@ -2,8 +2,10 @@ package com.prreview.web;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.scheduling.annotation.EnableAsync;
 
 /**
@@ -19,6 +21,8 @@ import org.springframework.scheduling.annotation.EnableAsync;
 @SpringBootApplication(scanBasePackages = "com.prreview")
 @EnableAsync
 @ConfigurationPropertiesScan(basePackages = "com.prreview")
+@EnableJpaRepositories(basePackages = "com.prreview.infrastructure.persistence")
+@EntityScan(basePackages = "com.prreview.infrastructure.persistence")
 public class PrReviewApplication {
 
     public static void main(String[] args) {

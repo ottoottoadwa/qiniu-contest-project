@@ -26,7 +26,8 @@ import java.util.UUID;
 public class ReviewSuggestionEntity {
 
     @Id
-    @Column(name = "id", nullable = false, updatable = false)
+    @Column(name = "id", nullable = false, updatable = false, columnDefinition = "CHAR(36)")
+    @JdbcTypeCode(SqlTypes.CHAR)
     private UUID id;
 
     @OneToOne(fetch = FetchType.LAZY)
@@ -43,7 +44,7 @@ public class ReviewSuggestionEntity {
     private String suggestedPatch;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "references", columnDefinition = "jsonb")
+    @Column(name = "references", columnDefinition = "json")
     private List<String> references;
 
     @CreatedDate
