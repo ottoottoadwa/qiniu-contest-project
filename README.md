@@ -7,6 +7,8 @@
 这是一个 REST API 后端服务，提供以下核心功能：
 
 - **AI 代码审查**：使用阿里云通义千问大模型分析代码变更，提供智能审查意见
+- **GitHub Bot 集成**：自动审查新建或更新的 PR，也支持 `/review` 命令手动触发
+- **事件驱动架构**：基于 Spring Events 的异步结果发布，无轮询开销
 - **多维度分析**：代码质量、安全性、性能、最佳实践等多角度评估
 - **实时进度跟踪**：支持查询审查任务的实时进度和状态
 - **GitHub 集成**：直接从 GitHub 拉取 PR 信息进行分析
@@ -47,7 +49,7 @@ prreview/
 
 ### 1. 配置环境变量
 
-**Windows (推荐使用提供的启动脚本):**
+**Windows:**
 
 ```bash
 set aliQwen_api=your-dashscope-api-key
@@ -63,7 +65,7 @@ export GITHUB_TOKEN=your-github-token
 
 **获取 API Key:**
 - 阿里云 DashScope API Key: https://dashscope.console.aliyun.com/apiKey
-- GitHub Token: https://github.com/settings/tokens
+- GitHub Token: https://github.com/settings/tokens (需要 `repo` 权限)
 
 ### 2. 配置数据库
 
@@ -83,42 +85,61 @@ spring:
     password: your-password
 ```
 
-### 3. 构建项目
+### 3. 构建并启动
+
+**Windows (一键启动):**
 
 ```bash
-mvn clean install
+build-and-start-prod.bat
 ```
 
-### 4. 启动服务
-
-**Windows (推荐):**
-
-使用提供的启动脚本，会自动检查环境变量：
+或分步执行：
 
 ```bash
-start-with-env.bat
-```
+# 构建项目
+mvn clean package -DskipTests
 
-或者直接运行 JAR：
-
-```bash
-start-jar.bat
+# 启动服务
+start-prod.bat
 ```
 
 **Linux/Mac:**
 
 ```bash
+# 构建项目
+mvn clean package -DskipTests
+
+# 启动服务
 cd prreview-web
 mvn spring-boot:run
 ```
 
-或运行 JAR：
+服务将在 `http://localhost:8080` 启动。
+
+### 4. 配置 GitHub Webhook（可选，用于自动审查）
+
+如果需要使用 GitHub Bot 自动审查功能：
+
+**使用 ngrok 暴露本地服务：**
 
 ```bash
-java -jar prreview-web/target/prreview-web-0.1.0-SNAPSHOT.jar
+# 启动 ngrok（另开一个终端）
+start-ngrok.bat
+
+# 或直接运行
+ngrok http 8080
 ```
 
-服务将在 `http://localhost:8080` 启动。
+**配置 GitHub Webhook：**
+
+1. 进入你的 GitHub 仓库 → Settings → Webhooks → Add webhook
+2. 配置：
+   - **Payload URL**: `https://your-ngrok-url/api/webhook/github`
+   - **Content type**: `application/json`
+   - **Events**: 选择 `Pull requests` 和 `Issue comments`
+3. 保存
+
+现在，每次创建或更新 PR 时，Bot 会自动进行审查！
 
 ### 5. 访问 Swagger UI
 
@@ -132,6 +153,41 @@ http://localhost:8080/swagger-ui.html
 - 查看所有 API 接口文档
 - 直接测试 API 接口
 - 查看请求/响应示例
+
+## GitHub Bot 使用
+
+### 自动审查模式
+
+Bot 会自动审查以下事件：
+- ✅ 新 PR 创建时 (`opened` 事件)
+- ✅ PR 更新时 (`synchronize` 事件)
+
+无需任何手动操作，Bot 会自动：
+1. 检测到 PR 事件
+2. 发布 "审查已启动" 评论
+3. 执行完整的代码审查
+4. 发布详细的审查结果
+
+### 手动触发模式
+
+在任何 PR 的评论中输入：
+
+```
+/review
+```
+
+Bot 会：
+1. 回复 👀 表情确认
+2. 发布 "审查已启动" 评论
+3. 执行审查并发布结果
+
+### Bot 智能检测
+
+Bot 会自动忽略来自其他 bot 的评论，防止无限循环：
+- 检测 GitHub 用户类型为 `Bot`
+- 检测用户名以 `[bot]` 结尾
+
+详细配置请参考 [GITHUB_BOT.md](./GITHUB_BOT.md)
 
 ## API 使用示例
 
@@ -216,12 +272,12 @@ mvn test
 
 ### 项目架构
 
-采用六边形架构（端口-适配器模式）：
+采用六边形架构（端口-适配器模式）+ 事件驱动设计：
 
 - **Domain Layer**: 核心业务逻辑，不依赖外部框架
-- **Application Layer**: 用例编排，协调领域对象
+- **Application Layer**: 用例编排，协调领域对象，发布领域事件
 - **Infrastructure Layer**: 技术实现（数据库、AI、GitHub API）
-- **Web Layer**: REST API 接口
+- **Web Layer**: REST API 接口、Webhook 处理、事件监听器
 
 ### 关键组件
 
@@ -229,6 +285,8 @@ mvn test
 2. **ReviewOrchestrator**: 审查流程编排器，管理整个审查生命周期
 3. **AnalysisEngine**: 分析引擎，并行处理文件分析和风险识别
 4. **ProgressCallback**: 进度回调机制，实时更新审查进度
+5. **ReviewCompletedListener**: 事件监听器，异步发布审查结果到 GitHub
+6. **WebhookService**: 处理 GitHub webhook 事件，防止 bot 循环
 
 ### 添加新功能
 
@@ -314,6 +372,23 @@ GitHub API 有速率限制。如果遇到 403 错误：
 2. 检查 token 的权限范围（需要 `repo` 权限）
 3. 等待速率限制重置（通常是每小时）
 
+### Webhook 未触发
+
+如果 Bot 没有自动审查：
+
+1. 检查 GitHub Webhook 配置页面的 "Recent Deliveries"
+2. 查看响应状态码和错误信息
+3. 确认 ngrok 或公网地址可访问
+4. 检查应用日志中的 webhook 事件
+
+### Bot 发布多条评论
+
+如果 Bot 重复发布评论：
+
+1. 检查是否有多个 webhook 配置
+2. 确认没有重复触发审查
+3. 查看日志中的重复检测信息
+
 ## 常见问题
 
 ### Q: 没有前端界面吗？
@@ -357,9 +432,10 @@ A: 取决于多个因素：
 ## 性能优化建议
 
 1. **并行处理**: 项目使用虚拟线程并行分析文件
-2. **缓存**: 可以添加 Redis 缓存重复的分析结果
-3. **批量处理**: 对于大型 PR，可以考虑分批处理
-4. **异步处理**: 所有审查任务都是异步执行的
+2. **事件驱动**: 使用 Spring Events 异步发布结果，无轮询开销
+3. **缓存**: 可以添加 Redis 缓存重复的分析结果
+4. **批量处理**: 对于大型 PR，可以考虑分批处理
+5. **异步处理**: 所有审查任务都是异步执行的
 
 ## 贡献指南
 
@@ -384,4 +460,3 @@ MIT License
 ## 联系方式
 
 如有问题或建议，欢迎提交 Issue 或 Pull Request。
-test
