@@ -2,17 +2,19 @@ package com.prreview.web.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.concurrent.Executor;
 
 /**
- * Async configuration for review task execution.
+ * Async configuration for review task execution and webhook processing.
  * With spring.threads.virtual.enabled=true, Spring Boot 3.2+ automatically
  * uses virtual threads for @Async tasks. This config provides a named executor
  * for explicit control and observability.
  */
 @Configuration
+@EnableAsync
 public class AsyncConfig {
 
     /**

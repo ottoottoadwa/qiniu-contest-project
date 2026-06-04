@@ -1,0 +1,21 @@
+# Demo Mode Configuration
+# 用于快速演示，减少分析时间
+
+spring:
+  ai:
+    openai:
+      chat:
+        options:
+          max-tokens: 500  # 减少生成的 token 数量（默认 2000）
+          temperature: 0.1
+
+# 限制分析的文件数量
+prreview:
+  github:
+    max-files-per-pr: 5  # 只分析前 5 个文件（默认 300）
+
+  # 快速模式：跳过建议生成
+  demo-mode:
+    enabled: true
+    skip-suggestions: true  # 跳过详细建议生成
+    max-files: 3  # 最多分析 3 个文件
