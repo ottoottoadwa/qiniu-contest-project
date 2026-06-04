@@ -130,9 +130,14 @@ public class WebhookService {
         // Ignore comments from bots (including ourselves) to prevent infinite loops
         Map<String, Object> user = (Map<String, Object>) comment.get("user");
         if (user != null) {
+            String login = (String) user.get("login");
             Object userType = user.get("type");
-            if ("Bot".equals(userType)) {
-                log.debug("Ignoring comment from bot user");
+
+            log.debug("Comment author: login={}, type={}", login, userType);
+
+            // Check both type field and login pattern
+            if ("Bot".equals(userType) || (login != null && login.endsWith("[bot]"))) {
+                log.info("Ignoring comment from bot user: {}", login);
                 return false;
             }
         }
