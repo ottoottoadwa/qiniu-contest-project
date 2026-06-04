@@ -89,9 +89,13 @@ public class SpringAiChatModelAdapter implements ChatModelPort {
     @SuppressWarnings("unchecked")
     private List<AiRiskFinding> parseRiskFindings(String response, String defaultFilePath) {
         try {
+            log.debug("Parsing risk findings from response length: {}", response != null ? response.length() : 0);
             String json = extractJson(response);
+            log.debug("Extracted JSON: {}", json.length() > 500 ? json.substring(0, 500) + "..." : json);
+
             List<Map<String, Object>> items = objectMapper.readValue(json,
                     new TypeReference<>() {});
+            log.info("Parsed {} risk findings from AI response", items.size());
             return items.stream()
                     .map(item -> new AiRiskFinding(
                             getString(item, "filePath", defaultFilePath),

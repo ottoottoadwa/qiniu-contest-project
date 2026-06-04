@@ -12,6 +12,7 @@ import com.prreview.domain.port.out.PrSource;
 import com.prreview.domain.port.out.ReviewRepositoryPort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -36,6 +37,7 @@ public class ReviewOrchestrator {
     private final AnalysisEngine analysisEngine;
     private final ReviewRepositoryPort reviewRepository;
     private final PlatformTransactionManager transactionManager;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Executes the full review pipeline for a given review task.
@@ -98,16 +100,49 @@ public class ReviewOrchestrator {
                     progressCallback);
 
             // Step 4: Complete
+            log.info("===== BEFORE review.complete() =====");
+            log.info("Summary: {}", result.summary());
+            log.info("RiskItems from analysis: {}", result.riskItems().size());
+            result.riskItems().forEach(item ->
+                log.info("  - {} | {} | {} | {}",
+                    item.severity(), item.category(), item.filePath(), item.description())
+            );
+
             review.complete(result.summary(), result.riskItems());
+
+            log.info("===== AFTER review.complete() =====");
+            log.info("Review.getRiskItems().size() = {}", review.getRiskItems().size());
+
             reviewRepository.save(review);
 
             log.info("Review completed: reviewId={}, riskItems={}",
                     reviewId, result.riskItems().size());
 
+            // Publish completion event for async processing
+            publishCompletionEvent(review);
+
         } catch (Exception e) {
             log.error("Review execution failed: reviewId={}", reviewId, e);
             review.fail(e.getMessage());
             newTransactionTemplate.executeWithoutResult(status -> reviewRepository.save(review));
+        }
+    }
+
+    /**
+     * Publishes a domain event indicating review completion.
+     * Event will be handled asynchronously by listeners.
+     */
+    private void publishCompletionEvent(Review review) {
+        try {
+            eventPublisher.publishEvent(new ReviewCompletedEvent(
+                    this,
+                    review.getId(),
+                    review.getRepository(),
+                    review.getPrNumber()
+            ));
+            log.debug("Published ReviewCompletedEvent: reviewId={}", review.getId());
+        } catch (Exception e) {
+            log.error("Failed to publish completion event: reviewId={}", review.getId(), e);
         }
     }
 }

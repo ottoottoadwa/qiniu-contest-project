@@ -28,8 +28,11 @@ public class ResultFormatter {
         sb.append("## 🤖 代码审查结果\n\n");
 
         // Summary
+        sb.append("### 📋 概要\n\n");
+
+        List<RiskItem> riskItems = review.getRiskItems();
+
         if (review.getSummary() != null) {
-            sb.append("### 📋 概要\n\n");
             sb.append("**").append(review.getSummary().headline()).append("**\n\n");
             if (review.getSummary().inferredPurpose() != null && !review.getSummary().inferredPurpose().isEmpty()) {
                 sb.append(review.getSummary().inferredPurpose()).append("\n\n");
@@ -40,10 +43,29 @@ public class ResultFormatter {
                 sb.append(String.join(", ", review.getSummary().affectedModules()));
                 sb.append("\n\n");
             }
+        } else if (!riskItems.isEmpty()) {
+            // Summary generation failed, but we have risk items - show statistics
+            Map<Severity, Long> severityCounts = riskItems.stream()
+                .collect(Collectors.groupingBy(RiskItem::severity, Collectors.counting()));
+
+            sb.append("⚠️ **总结生成失败，但检测到 ").append(riskItems.size()).append(" 个潜在问题**\n\n");
+            sb.append("**风险分布:** ");
+            if (severityCounts.containsKey(Severity.CRITICAL)) {
+                sb.append("🔴 CRITICAL: ").append(severityCounts.get(Severity.CRITICAL)).append(" ");
+            }
+            if (severityCounts.containsKey(Severity.HIGH)) {
+                sb.append("🟠 HIGH: ").append(severityCounts.get(Severity.HIGH)).append(" ");
+            }
+            if (severityCounts.containsKey(Severity.MEDIUM)) {
+                sb.append("🟡 MEDIUM: ").append(severityCounts.get(Severity.MEDIUM)).append(" ");
+            }
+            if (severityCounts.containsKey(Severity.LOW)) {
+                sb.append("🟢 LOW: ").append(severityCounts.get(Severity.LOW));
+            }
+            sb.append("\n\n");
         }
 
         // Risk items grouped by severity
-        List<RiskItem> riskItems = review.getRiskItems();
         if (riskItems.isEmpty()) {
             sb.append("### ✅ 未发现问题\n\n");
             sb.append("代码质量良好！本次 PR 未检测到明显风险。\n\n");

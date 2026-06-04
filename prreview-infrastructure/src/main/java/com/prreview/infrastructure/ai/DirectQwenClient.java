@@ -60,6 +60,12 @@ public class DirectQwenClient {
         );
 
         try {
+            log.info("========== QWEN API CALL ==========");
+            log.info("System prompt length: {}", systemPrompt.length());
+            log.info("User prompt length: {}", userPrompt.length());
+            log.info("System prompt preview: {}", systemPrompt.substring(0, Math.min(200, systemPrompt.length())));
+            log.info("User prompt preview: {}", userPrompt.substring(0, Math.min(500, userPrompt.length())));
+
             log.debug("Calling Qwen API: {}/v1/chat/completions", baseUrl);
             Map<String, Object> response = restClient.post()
                     .uri("/v1/chat/completions")
@@ -72,7 +78,12 @@ public class DirectQwenClient {
             if (choices != null && !choices.isEmpty()) {
                 Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
                 String content = (String) message.get("content");
-                log.debug("API call successful, response length: {}", content.length());
+
+                log.info("========== QWEN API RESPONSE ==========");
+                log.info("Response length: {}", content.length());
+                log.info("Full response content:\n{}", content);
+                log.info("======================================");
+
                 return content;
             }
 
