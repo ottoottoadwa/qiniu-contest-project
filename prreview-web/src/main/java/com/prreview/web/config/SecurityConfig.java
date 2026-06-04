@@ -37,6 +37,7 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers("/api/debug/**").permitAll()
                         .requestMatchers("/api/webhook/**").permitAll() // GitHub webhooks
+                        .requestMatchers("/api/reviews/**").permitAll() // Review status (temporary for demo)
                         .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/swagger-resources/**", "/webjars/**").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex

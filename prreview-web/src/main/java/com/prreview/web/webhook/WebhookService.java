@@ -5,6 +5,7 @@ import com.prreview.application.async.ReviewTaskRunner;
 import com.prreview.domain.model.pr.RepositoryRef;
 import com.prreview.domain.model.review.AnalysisProfile;
 import com.prreview.domain.model.review.Review;
+import com.prreview.domain.model.review.ReviewStatus;
 import com.prreview.domain.model.risk.RiskCategory;
 import com.prreview.domain.port.out.ReviewRepositoryPort;
 import com.prreview.infrastructure.github.GitHubCommentService;
@@ -12,10 +13,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.annotation.Propagation;
 
-import jakarta.persistence.EntityManager;
+import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -33,7 +32,6 @@ public class WebhookService {
     private final ReviewRepositoryPort reviewRepository;
     private final GitHubCommentService commentService;
     private final ResultFormatter resultFormatter;
-    private final EntityManager entityManager;
 
     /**
      * Handles pull_request events.
@@ -69,6 +67,12 @@ public class WebhookService {
         try {
             RepositoryRef repo = RepositoryRef.parse(fullName);
 
+            // Check if there's already a recent review (prevent duplicate triggers within 5 minutes)
+            if (hasRecentReview(repo, prNumber)) {
+                log.info("Skipping duplicate review - recent review exists for {}#{}", fullName, prNumber);
+                return false;
+            }
+
             // Trigger review asynchronously
             triggerReviewAsync(repo, prNumber);
 
@@ -77,6 +81,18 @@ public class WebhookService {
             log.error("Failed to trigger review: {}", e.getMessage(), e);
             return false;
         }
+    }
+
+    /**
+     * Check if there's a recent review for this PR (within 5 minutes).
+     */
+    private boolean hasRecentReview(RepositoryRef repo, int prNumber) {
+        Instant fiveMinutesAgo = Instant.now().minusSeconds(300);
+        return reviewRepository.findAll().stream()
+                .filter(r -> r.getRepository().equals(repo.toSlashNotation()))
+                .filter(r -> r.getPrNumber() == prNumber)
+                .filter(r -> r.getCreatedAt().isAfter(fiveMinutesAgo))
+                .anyMatch(r -> r.getStatus() == ReviewStatus.RUNNING || r.getStatus() == ReviewStatus.COMPLETED);
     }
 
     /**
@@ -112,6 +128,16 @@ public class WebhookService {
             return false;
         }
 
+        // Ignore comments from bots (including ourselves) to prevent infinite loops
+        Map<String, Object> user = (Map<String, Object>) comment.get("user");
+        if (user != null) {
+            Object userType = user.get("type");
+            if ("Bot".equals(userType)) {
+                log.debug("Ignoring comment from bot user");
+                return false;
+            }
+        }
+
         String commentBody = (String) comment.get("body");
         if (commentBody == null || !commentBody.trim().toLowerCase().contains("/review")) {
             log.debug("Comment does not contain /review command");
@@ -142,11 +168,10 @@ public class WebhookService {
     }
 
     /**
-     * Triggers a PR review asynchronously and posts results as a comment.
-     * Uses NOT_SUPPORTED propagation to avoid reading stale data from outer transaction.
+     * Triggers a PR review asynchronously.
+     * Returns immediately - results will be posted via event listener.
      */
     @Async
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void triggerReviewAsync(RepositoryRef repo, int prNumber) {
         log.info("Starting async review: {}#{}", repo.toSlashNotation(), prNumber);
 
@@ -166,64 +191,14 @@ public class WebhookService {
                     "审查 ID: `" + review.getId() + "`";
             commentService.postComment(repo, prNumber, initialComment);
 
-            // Execute review
+            // Execute review (results will be posted by event listener)
             reviewTaskRunner.runAsync(review.getId(), Set.of());
 
-            // Wait for completion with shorter intervals
-            int maxWaitSeconds = 120; // 2 minutes (reduced from 5)
-            int waited = 0;
-            Review updated = null;
+            log.info("Review task submitted: reviewId={}, repo={}#{}",
+                    review.getId(), repo.toSlashNotation(), prNumber);
 
-            while (waited < maxWaitSeconds) {
-                Thread.sleep(2000); // Check every 2 seconds (reduced from 5)
-                waited += 2;
-
-                // Clear the persistence context to force a fresh query
-                entityManager.clear();
-
-                updated = reviewRepository.findById(review.getId()).orElse(null);
-                if (updated == null) {
-                    log.error("Review disappeared: {}", review.getId());
-                    return;
-                }
-
-                log.debug("Review status check: reviewId={}, status={}, waited={}s",
-                         review.getId(), updated.getStatus(), waited);
-
-                if (updated.getStatus() == com.prreview.domain.model.review.ReviewStatus.COMPLETED) {
-                    // Post results
-                    String resultComment = resultFormatter.formatAsComment(updated);
-                    commentService.postComment(repo, prNumber, resultComment);
-                    log.info("Review completed and posted: {}#{}", repo.toSlashNotation(), prNumber);
-                    return;
-                } else if (updated.getStatus() == com.prreview.domain.model.review.ReviewStatus.FAILED) {
-                    // Post error
-                    String errorComment = resultFormatter.formatError(updated.getFailureReason());
-                    commentService.postComment(repo, prNumber, errorComment);
-                    log.error("Review failed: {}#{}", repo.toSlashNotation(), prNumber);
-                    return;
-                }
-            }
-
-            // Timeout - but check one more time
-            updated = reviewRepository.findById(review.getId()).orElse(null);
-            if (updated != null && updated.getStatus() == com.prreview.domain.model.review.ReviewStatus.COMPLETED) {
-                String resultComment = resultFormatter.formatAsComment(updated);
-                commentService.postComment(repo, prNumber, resultComment);
-                log.info("Review completed (after timeout check): {}#{}", repo.toSlashNotation(), prNumber);
-            } else {
-                log.warn("Review timed out: {}#{}", repo.toSlashNotation(), prNumber);
-                String timeoutComment = "⏱️ **审查超时**\n\n" +
-                        "审查时间超过预期。" +
-                        "您可以通过 `/api/reviews/" + review.getId() + "` 查看状态";
-                commentService.postComment(repo, prNumber, timeoutComment);
-            }
-
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            log.error("Review interrupted: {}#{}", repo.toSlashNotation(), prNumber);
         } catch (Exception e) {
-            log.error("Review failed: {}#{}", repo.toSlashNotation(), prNumber, e);
+            log.error("Review failed to start: {}#{}", repo.toSlashNotation(), prNumber, e);
             try {
                 String errorComment = resultFormatter.formatError(e.getMessage());
                 commentService.postComment(repo, prNumber, errorComment);

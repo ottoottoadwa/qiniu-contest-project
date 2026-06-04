@@ -7,6 +7,7 @@ import com.prreview.domain.model.risk.AiRiskFinding;
 import com.prreview.domain.model.risk.Confidence;
 import com.prreview.domain.model.risk.RiskCategory;
 import com.prreview.domain.model.risk.RiskItem;
+import com.prreview.domain.model.risk.Severity;
 import com.prreview.domain.port.out.ChatModelPort;
 import com.prreview.domain.port.out.RuleEnginePort;
 import com.prreview.domain.service.ConfidenceScoringService;
@@ -165,8 +166,11 @@ public class AnalysisEngine {
 
         return riskItems.stream()
                 .map(item -> {
-                    if (item.confidence() == Confidence.LOW) {
-                        return item; // skip LOW confidence items
+                    // Only generate suggestions for HIGH/CRITICAL severity items to save tokens
+                    if (item.confidence() == Confidence.LOW ||
+                        item.severity() == Severity.LOW ||
+                        item.severity() == Severity.MEDIUM) {
+                        return item; // skip LOW/MEDIUM severity items
                     }
                     try {
                         ContextPackage ctx = ctxByFile.get(item.filePath());
