@@ -39,6 +39,14 @@ spring:
     virtual:
       enabled: true
 
+  # Async task execution
+  task:
+    execution:
+      pool:
+        core-size: 5
+        max-size: 20
+        queue-capacity: 100
+
   # Spring AI — OpenAI-compatible endpoint for Qwen (Alibaba DashScope)
   ai:
     openai:
